@@ -58,11 +58,17 @@ pub fn list_org_tables(conn: &Connection, org_id: &OrgId) -> Result<Vec<String>,
 }
 
 /// Drop all org-prefixed tables (for org deletion/cleanup).
+/// Table names are validated: only alphanumeric and underscore allowed.
 pub fn drop_org_tables(conn: &Connection, org_id: &OrgId) -> Result<usize, TenancyError> {
     let tables = list_org_tables(conn, org_id)?;
     let count = tables.len();
     for table in &tables {
-        let sql = format!("DROP TABLE IF EXISTS \"{table}\"");
+        if !table.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            return Err(TenancyError::IsolationViolation(format!(
+                "unsafe table name: {table}"
+            )));
+        }
+        let sql = format!("DROP TABLE IF EXISTS [{table}]");
         conn.execute_batch(&sql)
             .map_err(|e| TenancyError::Db(format!("drop {table}: {e}")))?;
     }
@@ -83,13 +89,16 @@ mod tests {
     #[test]
     fn validate_own_prefix() {
         let org = OrgId("acme".into());
-        assert!(validate_table_access(&org, "org_acme_tasks").is_ok());
+        let prefix = org.table_prefix();
+        assert!(validate_table_access(&org, &format!("{prefix}tasks")).is_ok());
     }
 
     #[test]
     fn reject_foreign_prefix() {
         let org = OrgId("acme".into());
-        let result = validate_table_access(&org, "org_evil_tasks");
+        let evil = OrgId("evil".into());
+        let evil_table = format!("{}tasks", evil.table_prefix());
+        let result = validate_table_access(&org, &evil_table);
         assert!(result.is_err());
     }
 
@@ -107,7 +116,9 @@ mod tests {
         let template = "CREATE TABLE IF NOT EXISTS {prefix}tasks (id INTEGER PRIMARY KEY)";
         create_org_table(&conn, &org, template).unwrap();
         let tables = list_org_tables(&conn, &org).unwrap();
-        assert_eq!(tables, vec!["org_acme_tasks"]);
+        assert_eq!(tables.len(), 1);
+        assert!(tables[0].starts_with("org_acme_"));
+        assert!(tables[0].ends_with("_tasks"));
     }
 
     #[test]

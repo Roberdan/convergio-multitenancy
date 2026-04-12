@@ -213,7 +213,6 @@ pub struct IsolationViolation {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
 pub enum TenancyError {
     #[error("isolation violation: {0}")]
     IsolationViolation(String),

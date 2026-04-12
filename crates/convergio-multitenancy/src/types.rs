@@ -3,25 +3,67 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+/// Maximum length for an org identifier.
+const MAX_ORG_ID_LEN: usize = 128;
+
 /// Strongly-typed org identifier.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct OrgId(pub String);
 
 impl OrgId {
+    /// Create a validated OrgId. Rejects empty, oversized, or invalid identifiers.
+    pub fn new(id: impl Into<String>) -> Result<Self, TenancyError> {
+        let id = id.into();
+        if id.is_empty() {
+            return Err(TenancyError::InvalidOrgId(
+                "org_id must not be empty".into(),
+            ));
+        }
+        if id.len() > MAX_ORG_ID_LEN {
+            return Err(TenancyError::InvalidOrgId(format!(
+                "org_id exceeds {MAX_ORG_ID_LEN} chars"
+            )));
+        }
+        // Must start with alphanumeric, contain only alphanumeric/hyphen/underscore
+        if !id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(TenancyError::InvalidOrgId(
+                "org_id must be alphanumeric, hyphens, or underscores only".into(),
+            ));
+        }
+        if !id.chars().next().unwrap_or('_').is_ascii_alphanumeric() {
+            return Err(TenancyError::InvalidOrgId(
+                "org_id must start with alphanumeric character".into(),
+            ));
+        }
+        Ok(Self(id))
+    }
+
     /// Sanitized prefix for DB table names (alphanumeric + underscore only).
+    /// Hyphens are replaced with underscores; the raw org_id is preserved
+    /// separately to avoid collisions (e.g. "org-a" vs "org_a").
     pub fn table_prefix(&self) -> String {
         let sanitized: String = self
             .0
             .chars()
             .map(|c| {
-                if c.is_alphanumeric() || c == '_' {
+                if c.is_ascii_alphanumeric() || c == '_' {
                     c
                 } else {
                     '_'
                 }
             })
             .collect();
-        format!("org_{sanitized}_")
+        // Include a hash suffix to prevent prefix collisions between
+        // org ids that differ only in non-alphanumeric chars (e.g. "org-a" vs "org_a").
+        use sha2::{Digest, Sha256};
+        let mut h = Sha256::new();
+        h.update(self.0.as_bytes());
+        let hash = format!("{:x}", h.finalize());
+        let short_hash = &hash[..8];
+        format!("org_{sanitized}_{short_hash}_")
     }
 }
 
@@ -174,12 +216,16 @@ pub struct IsolationViolation {
 pub enum TenancyError {
     #[error("isolation violation: {0}")]
     IsolationViolation(String),
+    #[error("invalid org_id: {0}")]
+    InvalidOrgId(String),
     #[error("org not found: {0}")]
     OrgNotFound(String),
     #[error("resource limit exceeded: {0}")]
     ResourceLimitExceeded(String),
     #[error("db error: {0}")]
     Db(String),
+    #[error("unauthorized: {0}")]
+    Unauthorized(String),
 }
 
 #[cfg(test)]
@@ -189,7 +235,9 @@ mod tests {
     #[test]
     fn org_id_table_prefix_sanitization() {
         let org = OrgId("acme-corp".into());
-        assert_eq!(org.table_prefix(), "org_acme_corp_");
+        let prefix = org.table_prefix();
+        assert!(prefix.starts_with("org_acme_corp_"));
+        assert!(prefix.ends_with('_'));
     }
 
     #[test]
@@ -202,5 +250,43 @@ mod tests {
     fn default_resource_limits() {
         let limits = ResourceLimits::default_for(OrgId("test".into()));
         assert_eq!(limits.max_concurrent_agents, 20);
+    }
+
+    #[test]
+    fn org_id_new_rejects_empty() {
+        assert!(OrgId::new("").is_err());
+    }
+
+    #[test]
+    fn org_id_new_rejects_special_chars() {
+        assert!(OrgId::new("'; DROP TABLE users; --").is_err());
+        assert!(OrgId::new("evil/../../etc").is_err());
+        assert!(OrgId::new("org with spaces").is_err());
+    }
+
+    #[test]
+    fn org_id_new_rejects_leading_non_alpha() {
+        assert!(OrgId::new("-leading-hyphen").is_err());
+        assert!(OrgId::new("_leading-underscore").is_err());
+    }
+
+    #[test]
+    fn org_id_new_accepts_valid() {
+        assert!(OrgId::new("acme").is_ok());
+        assert!(OrgId::new("acme-corp").is_ok());
+        assert!(OrgId::new("org_123").is_ok());
+    }
+
+    #[test]
+    fn prefix_collision_prevented() {
+        let org1 = OrgId("org-a".into());
+        let org2 = OrgId("org_a".into());
+        assert_ne!(org1.table_prefix(), org2.table_prefix());
+    }
+
+    #[test]
+    fn org_id_too_long() {
+        let long_id: String = "a".repeat(MAX_ORG_ID_LEN + 1);
+        assert!(OrgId::new(long_id).is_err());
     }
 }

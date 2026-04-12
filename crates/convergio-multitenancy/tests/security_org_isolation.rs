@@ -27,12 +27,14 @@ fn test_conn() -> Connection {
 fn org_a_cannot_access_org_b_tables() {
     let org_a = OrgId("alpha".into());
     let org_b = OrgId("beta".into());
+    let b_table = format!("{}tasks", org_b.table_prefix());
+    let a_table = format!("{}tasks", org_a.table_prefix());
     assert!(
-        validate_table_access(&org_a, "org_beta_tasks").is_err(),
+        validate_table_access(&org_a, &b_table).is_err(),
         "org alpha must NOT access org_beta tables"
     );
     assert!(
-        validate_table_access(&org_b, "org_alpha_tasks").is_err(),
+        validate_table_access(&org_b, &a_table).is_err(),
         "org beta must NOT access org_alpha tables"
     );
 }
@@ -40,8 +42,9 @@ fn org_a_cannot_access_org_b_tables() {
 #[test]
 fn org_accesses_own_tables() {
     let org = OrgId("acme".into());
-    assert!(validate_table_access(&org, "org_acme_tasks").is_ok());
-    assert!(validate_table_access(&org, "org_acme_agents").is_ok());
+    let prefix = org.table_prefix();
+    assert!(validate_table_access(&org, &format!("{prefix}tasks")).is_ok());
+    assert!(validate_table_access(&org, &format!("{prefix}agents")).is_ok());
 }
 
 #[test]
@@ -54,22 +57,15 @@ fn shared_tables_accessible_by_all_orgs() {
 }
 
 #[test]
-fn sql_injection_in_org_id_sanitized() {
-    let evil_org = OrgId("'; DROP TABLE users; --".into());
-    let prefix = evil_org.table_prefix();
-    assert!(
-        !prefix.contains('\'') && !prefix.contains(';'),
-        "org prefix must sanitize special chars: got {prefix}"
-    );
+fn sql_injection_in_org_id_rejected_by_validation() {
+    let result = OrgId::new("'; DROP TABLE users; --");
+    assert!(result.is_err(), "SQL injection org_id must be rejected");
 }
 
 #[test]
-fn empty_org_id_prefix_is_safe() {
-    let org = OrgId("".into());
-    let prefix = org.table_prefix();
-    assert_eq!(prefix, "org__");
-    assert!(validate_table_access(&org, "org__tasks").is_ok());
-    assert!(validate_table_access(&org, "org_other_tasks").is_err());
+fn empty_org_id_rejected_by_validation() {
+    let result = OrgId::new("");
+    assert!(result.is_err(), "empty org_id must be rejected");
 }
 
 #[test]
@@ -83,8 +79,12 @@ fn create_tables_isolated_per_org() {
 
     let tables_a = list_org_tables(&conn, &org_a).unwrap();
     let tables_b = list_org_tables(&conn, &org_b).unwrap();
-    assert_eq!(tables_a, vec!["org_alpha_data"]);
-    assert_eq!(tables_b, vec!["org_beta_data"]);
+    assert_eq!(tables_a.len(), 1);
+    assert_eq!(tables_b.len(), 1);
+    assert!(tables_a[0].contains("alpha"));
+    assert!(tables_b[0].contains("beta"));
+    // Cross-isolation: a's tables don't appear in b's list
+    assert!(!tables_a.iter().any(|t| t.contains("beta")));
 }
 
 #[test]
@@ -160,21 +160,13 @@ fn org_b_cannot_delete_org_a_secret() {
     );
 }
 
-// ── Org ID edge cases ────────────────────────────────────────────────────────
+// ── Org ID validation ────────────────────────────────────────────────────────
 
 #[test]
-fn org_id_with_special_chars_isolated() {
-    let org_normal = OrgId("acme".into());
-    let org_special = OrgId("evil-org/../../etc".into());
-    assert!(
-        validate_table_access(&org_special, "org_acme_tasks").is_err(),
-        "special-char org must NOT access another org's tables"
-    );
-    let special_prefix = org_special.table_prefix();
-    assert!(
-        validate_table_access(&org_normal, &format!("{special_prefix}tasks")).is_err(),
-        "normal org must NOT access special-char org's tables"
-    );
+fn org_id_with_special_chars_rejected() {
+    assert!(OrgId::new("evil-org/../../etc").is_err());
+    assert!(OrgId::new("org;DROP TABLE").is_err());
+    assert!(OrgId::new("org\0null").is_err());
 }
 
 #[test]
@@ -183,6 +175,10 @@ fn org_id_prefix_collision_prevented() {
     let org2 = OrgId("org-a".into());
     let p1 = org1.table_prefix();
     let p2 = org2.table_prefix();
+    assert_ne!(p1, p2, "different org_ids must produce different prefixes");
     assert!(validate_table_access(&org1, &format!("{p1}tasks")).is_ok());
     assert!(validate_table_access(&org2, &format!("{p2}tasks")).is_ok());
+    // Cross-access blocked
+    assert!(validate_table_access(&org1, &format!("{p2}tasks")).is_err());
+    assert!(validate_table_access(&org2, &format!("{p1}tasks")).is_err());
 }

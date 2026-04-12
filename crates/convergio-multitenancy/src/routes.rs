@@ -213,6 +213,15 @@ async fn handle_audit(
     Json(serde_json::to_value(entries).unwrap_or_default())
 }
 
+/// Resource status for an org (kept for API/semver compatibility).
+#[derive(Debug, Serialize)]
+pub struct ResourceStatus {
+    pub org_id: String,
+    pub limits: Option<serde_json::Value>,
+    pub usage: Option<serde_json::Value>,
+    pub violations: Vec<String>,
+}
+
 async fn handle_resources(
     State(state): State<Arc<TenancyState>>,
     Query(params): Query<OrgQuery>,

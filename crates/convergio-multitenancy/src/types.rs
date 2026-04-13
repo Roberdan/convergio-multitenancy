@@ -61,7 +61,7 @@ impl OrgId {
         use sha2::{Digest, Sha256};
         let mut h = Sha256::new();
         h.update(self.0.as_bytes());
-        let hash = format!("{:x}", h.finalize());
+        let hash = h.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>();
         let short_hash = &hash[..8];
         format!("org_{sanitized}_{short_hash}_")
     }

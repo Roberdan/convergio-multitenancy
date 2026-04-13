@@ -192,7 +192,7 @@ mod tests {
         let limits = ResourceLimits::default_for(OrgId("acme".into()));
         set_limits(&conn, &limits).unwrap();
         let got = get_limits(&conn, &OrgId("acme".into())).unwrap().unwrap();
-        assert_eq!(got.max_concurrent_agents, 20);
+        assert_eq!(got.max_concurrent_agents, 100);
     }
 
     #[test]

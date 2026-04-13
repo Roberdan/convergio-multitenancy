@@ -47,7 +47,7 @@ pub fn migrations() -> Vec<Migration> {
                 max_cpu_seconds_per_hour  INTEGER NOT NULL DEFAULT 3600,
                 max_memory_mb             INTEGER NOT NULL DEFAULT 4096,
                 max_storage_mb            INTEGER NOT NULL DEFAULT 10240,
-                max_concurrent_agents     INTEGER NOT NULL DEFAULT 20,
+                max_concurrent_agents     INTEGER NOT NULL DEFAULT 100,
                 max_api_calls_per_minute  INTEGER NOT NULL DEFAULT 600
             );
 

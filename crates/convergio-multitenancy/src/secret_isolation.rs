@@ -100,7 +100,11 @@ pub fn list_secrets(conn: &Connection, org_id: &OrgId) -> Result<Vec<ScopedSecre
 fn encrypt_value(org_id: &OrgId, value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(format!("{}:{}", org_id.0, value).as_bytes());
-    hasher.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>()
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>()
 }
 
 #[cfg(test)]

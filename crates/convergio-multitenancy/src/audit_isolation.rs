@@ -146,7 +146,11 @@ fn last_hash(conn: &Connection, org_id: &OrgId) -> Result<String, TenancyError> 
 fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
-    hasher.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>()
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>()
 }
 
 #[cfg(test)]

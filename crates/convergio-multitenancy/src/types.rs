@@ -126,7 +126,7 @@ impl ResourceLimits {
             max_cpu_seconds_per_hour: 3600,
             max_memory_mb: 4096,
             max_storage_mb: 10240,
-            max_concurrent_agents: 20,
+            max_concurrent_agents: 100,
             max_api_calls_per_minute: 600,
         }
     }
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn default_resource_limits() {
         let limits = ResourceLimits::default_for(OrgId("test".into()));
-        assert_eq!(limits.max_concurrent_agents, 20);
+        assert_eq!(limits.max_concurrent_agents, 100);
     }
 
     #[test]

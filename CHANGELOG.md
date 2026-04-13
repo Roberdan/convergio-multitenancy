@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/Roberdan/convergio-multitenancy/compare/v0.4.0...v0.4.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* sha2 0.11 compatibility — replace LowerHex with manual hex encoding ([0680541](https://github.com/Roberdan/convergio-multitenancy/commit/0680541ac584be274c7c4032058c20fd63a21898))
+
 ## [0.4.0](https://github.com/Roberdan/convergio-multitenancy/compare/v0.3.0...v0.4.0) (2026-04-13)
 
 

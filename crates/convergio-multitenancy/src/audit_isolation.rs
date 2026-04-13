@@ -60,7 +60,7 @@ pub fn query_org(
              ORDER BY id DESC LIMIT ?2",
         )
         .map_err(|e| TenancyError::Db(e.to_string()))?;
-    let entries = stmt
+    let entries: Vec<OrgAuditEntry> = stmt
         .query_map(rusqlite::params![org_id.0, limit], |row| {
             Ok(OrgAuditEntry {
                 id: Some(row.get(0)?),
@@ -75,8 +75,8 @@ pub fn query_org(
             })
         })
         .map_err(|e| TenancyError::Db(e.to_string()))?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| TenancyError::Db(e.to_string()))?;
     Ok(entries)
 }
 
@@ -89,7 +89,7 @@ pub fn query_all(conn: &Connection, limit: u32) -> Result<Vec<OrgAuditEntry>, Te
              FROM mt_org_audit ORDER BY id DESC LIMIT ?1",
         )
         .map_err(|e| TenancyError::Db(e.to_string()))?;
-    let entries = stmt
+    let entries: Vec<OrgAuditEntry> = stmt
         .query_map([limit], |row| {
             Ok(OrgAuditEntry {
                 id: Some(row.get(0)?),
@@ -104,8 +104,8 @@ pub fn query_all(conn: &Connection, limit: u32) -> Result<Vec<OrgAuditEntry>, Te
             })
         })
         .map_err(|e| TenancyError::Db(e.to_string()))?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| TenancyError::Db(e.to_string()))?;
     Ok(entries)
 }
 
@@ -120,8 +120,8 @@ pub fn verify_chain(conn: &Connection, org_id: &OrgId) -> Result<bool, TenancyEr
     let hashes: Vec<(String, String)> = stmt
         .query_map([&org_id.0], |row| Ok((row.get(0)?, row.get(1)?)))
         .map_err(|e| TenancyError::Db(e.to_string()))?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| TenancyError::Db(e.to_string()))?;
     for i in 1..hashes.len() {
         if hashes[i].0 != hashes[i - 1].1 {
             return Ok(false);
@@ -132,15 +132,16 @@ pub fn verify_chain(conn: &Connection, org_id: &OrgId) -> Result<bool, TenancyEr
 
 /// Get the last hash in the org's audit chain.
 fn last_hash(conn: &Connection, org_id: &OrgId) -> Result<String, TenancyError> {
-    let hash: String = conn
-        .query_row(
-            "SELECT entry_hash FROM mt_org_audit
-             WHERE org_id = ?1 ORDER BY id DESC LIMIT 1",
-            [&org_id.0],
-            |r| r.get(0),
-        )
-        .unwrap_or_else(|_| "0".repeat(64));
-    Ok(hash)
+    match conn.query_row(
+        "SELECT entry_hash FROM mt_org_audit
+         WHERE org_id = ?1 ORDER BY id DESC LIMIT 1",
+        [&org_id.0],
+        |r| r.get(0),
+    ) {
+        Ok(hash) => Ok(hash),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok("0".repeat(64)),
+        Err(e) => Err(TenancyError::Db(format!("last_hash: {e}"))),
+    }
 }
 
 fn sha256_hex(data: &[u8]) -> String {

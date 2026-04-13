@@ -55,14 +55,16 @@ pub fn is_peer_allowed(
     if count == 0 {
         return Ok(true);
     }
-    let allowed: bool = conn
-        .query_row(
-            "SELECT allowed FROM mt_peer_whitelist
-             WHERE org_id = ?1 AND peer_name = ?2",
-            rusqlite::params![org_id.0, peer_name],
-            |r| r.get::<_, bool>(0),
-        )
-        .unwrap_or(false);
+    let allowed: bool = match conn.query_row(
+        "SELECT allowed FROM mt_peer_whitelist
+         WHERE org_id = ?1 AND peer_name = ?2",
+        rusqlite::params![org_id.0, peer_name],
+        |r| r.get::<_, bool>(0),
+    ) {
+        Ok(v) => v,
+        Err(rusqlite::Error::QueryReturnedNoRows) => false,
+        Err(e) => return Err(TenancyError::Db(format!("is_peer_allowed: {e}"))),
+    };
     Ok(allowed)
 }
 
@@ -74,7 +76,7 @@ pub fn list_peers(conn: &Connection, org_id: &OrgId) -> Result<Vec<PeerWhitelist
              FROM mt_peer_whitelist WHERE org_id = ?1 ORDER BY peer_name",
         )
         .map_err(|e| TenancyError::Db(e.to_string()))?;
-    let rows = stmt
+    let rows: Vec<PeerWhitelist> = stmt
         .query_map([&org_id.0], |row| {
             Ok(PeerWhitelist {
                 org_id: OrgId(row.get::<_, String>(0)?),
@@ -85,8 +87,8 @@ pub fn list_peers(conn: &Connection, org_id: &OrgId) -> Result<Vec<PeerWhitelist
             })
         })
         .map_err(|e| TenancyError::Db(e.to_string()))?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| TenancyError::Db(e.to_string()))?;
     Ok(rows)
 }
 
@@ -95,17 +97,6 @@ mod tests {
     use super::*;
 
     fn setup() -> Connection {
-        let pool = convergio_db::pool::create_memory_pool().unwrap();
-        let conn = pool.get().unwrap();
-        convergio_db::migration::ensure_registry(&conn).unwrap();
-        convergio_db::migration::apply_migrations(
-            &conn,
-            "multitenancy",
-            &crate::schema::migrations(),
-        )
-        .unwrap();
-        // Return a fresh in-memory connection with tables
-        drop(conn);
         let c = Connection::open_in_memory().unwrap();
         c.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
         for m in crate::schema::migrations() {

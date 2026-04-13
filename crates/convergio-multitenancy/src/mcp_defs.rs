@@ -34,16 +34,20 @@ pub fn tenancy_tools() -> Vec<McpToolDef> {
         },
         McpToolDef {
             name: "cvg_create_tenancy_resource".into(),
-            description: "Create a tenancy resource.".into(),
+            description: "Set resource limits for a tenancy org.".into(),
             method: "POST".into(),
             path: "/api/tenancy/resources".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string"},
-                    "type": {"type": "string"}
+                    "org_id": {"type": "string"},
+                    "max_cpu_seconds_per_hour": {"type": "integer"},
+                    "max_memory_mb": {"type": "integer"},
+                    "max_storage_mb": {"type": "integer"},
+                    "max_concurrent_agents": {"type": "integer"},
+                    "max_api_calls_per_minute": {"type": "integer"}
                 },
-                "required": ["name", "type"]
+                "required": ["org_id"]
             }),
             min_ring: "trusted".into(),
             path_params: vec![],

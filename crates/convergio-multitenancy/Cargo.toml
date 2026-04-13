@@ -4,6 +4,7 @@ description = "Multi-tenancy isolation — tenant routing, quotas, and namespace
 version = "0.4.2"
 edition.workspace = true
 license.workspace = true
+repository = "https://github.com/Roberdan/convergio-multitenancy"
 
 [dependencies]
 convergio-types = { workspace = true }

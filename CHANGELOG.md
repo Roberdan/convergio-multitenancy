@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.2](https://github.com/Roberdan/convergio-multitenancy/compare/v0.4.1...v0.4.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* apply cargo fmt ([9ed417c](https://github.com/Roberdan/convergio-multitenancy/commit/9ed417c28a253906d27d7c84e3a34a730f215602))
+* raise default max_concurrent_agents from 20 to 100 ([691ea04](https://github.com/Roberdan/convergio-multitenancy/commit/691ea04cbfa07de930df5299966cc15e5c8ad873))
+* raise default max_concurrent_agents to 100 ([68b1d20](https://github.com/Roberdan/convergio-multitenancy/commit/68b1d207a65d3fe4290082aa061a64af1d20c2cc))
+
 ## [0.4.1](https://github.com/Roberdan/convergio-multitenancy/compare/v0.4.0...v0.4.1) (2026-04-13)
 
 

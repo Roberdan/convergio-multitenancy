@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/Roberdan/convergio-multitenancy/compare/v0.4.3...v0.4.4) (2026-04-13)
+
+
+### Bug Fixes
+
+* pass CARGO_REGISTRY_TOKEN to release workflow ([638c7e9](https://github.com/Roberdan/convergio-multitenancy/commit/638c7e96e6aab0accebe9dd8ee6bee5af755902e))
+
 ## [0.4.3](https://github.com/Roberdan/convergio-multitenancy/compare/v0.4.2...v0.4.3) (2026-04-13)
 
 

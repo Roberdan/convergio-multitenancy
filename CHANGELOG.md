@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.5](https://github.com/Roberdan/convergio-multitenancy/compare/v0.4.4...v0.4.5) (2026-04-18)
+
+
+### Bug Fixes
+
+* security and quality audit pass 2 ([d94e3a6](https://github.com/Roberdan/convergio-multitenancy/commit/d94e3a612291deeb3a211e1bd396b67c0a97c811))
+* stop swallowing DB errors, harden routes, fix MCP schema ([aaf1690](https://github.com/Roberdan/convergio-multitenancy/commit/aaf1690fe824f7e293554719f27c8674151ef090))
+
 ## [0.4.4](https://github.com/Roberdan/convergio-multitenancy/compare/v0.4.3...v0.4.4) (2026-04-13)
 
 

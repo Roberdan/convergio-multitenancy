@@ -79,6 +79,11 @@ impl PeerAction {
                     "error": {"code": "INVALID_PEER_URL", "message": "peer_url exceeds 512 chars"}
                 }));
             }
+            if !url.is_empty() && !url.starts_with("http://") && !url.starts_with("https://") {
+                return Err(serde_json::json!({
+                    "error": {"code": "INVALID_PEER_URL", "message": "peer_url must use http:// or https:// scheme"}
+                }));
+            }
         }
         Ok(org)
     }
@@ -105,7 +110,11 @@ async fn handle_list_peers(
     };
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(_) => return Json(serde_json::json!([])),
+        Err(e) => {
+            return Json(serde_json::json!({
+                "error": {"code": "POOL_ERROR", "message": e.to_string()}
+            }))
+        }
     };
     let peers = network_isolation::list_peers(&conn, &org).unwrap_or_default();
     let entries: Vec<PeerEntry> = peers
@@ -169,7 +178,11 @@ async fn handle_list_secrets(
     };
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(_) => return Json(serde_json::json!([])),
+        Err(e) => {
+            return Json(serde_json::json!({
+                "error": {"code": "POOL_ERROR", "message": e.to_string()}
+            }))
+        }
     };
     Json(
         serde_json::to_value(secret_isolation::list_secret_keys(&conn, &org).unwrap_or_default())
@@ -206,7 +219,11 @@ async fn handle_audit(
     };
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(_) => return Json(serde_json::json!([])),
+        Err(e) => {
+            return Json(serde_json::json!({
+                "error": {"code": "POOL_ERROR", "message": e.to_string()}
+            }))
+        }
     };
     let limit = params.limit.unwrap_or(50).min(MAX_AUDIT_LIMIT);
     let entries = audit_isolation::query_org(&conn, &org, limit).unwrap_or_default();
@@ -236,12 +253,9 @@ async fn handle_resources(
     };
     let conn = match state.pool.get() {
         Ok(c) => c,
-        Err(_) => {
+        Err(e) => {
             return Json(serde_json::json!({
-                "org_id": params.org_id,
-                "limits": null,
-                "usage": null,
-                "violations": []
+                "error": {"code": "POOL_ERROR", "message": e.to_string()}
             }))
         }
     };

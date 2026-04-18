@@ -36,15 +36,16 @@ pub fn get_secret(
     org_id: &OrgId,
     key: &str,
 ) -> Result<Option<String>, TenancyError> {
-    let result: Option<String> = conn
-        .query_row(
-            "SELECT encrypted_value FROM mt_scoped_secrets
-             WHERE org_id = ?1 AND key = ?2",
-            rusqlite::params![org_id.0, key],
-            |r| r.get(0),
-        )
-        .ok();
-    Ok(result)
+    match conn.query_row(
+        "SELECT encrypted_value FROM mt_scoped_secrets
+         WHERE org_id = ?1 AND key = ?2",
+        rusqlite::params![org_id.0, key],
+        |r| r.get(0),
+    ) {
+        Ok(val) => Ok(Some(val)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(TenancyError::Db(format!("get_secret: {e}"))),
+    }
 }
 
 /// Delete a secret for an org.
@@ -63,11 +64,11 @@ pub fn list_secret_keys(conn: &Connection, org_id: &OrgId) -> Result<Vec<String>
     let mut stmt = conn
         .prepare("SELECT key FROM mt_scoped_secrets WHERE org_id = ?1 ORDER BY key")
         .map_err(|e| TenancyError::Db(e.to_string()))?;
-    let keys = stmt
+    let keys: Vec<String> = stmt
         .query_map([&org_id.0], |row| row.get::<_, String>(0))
         .map_err(|e| TenancyError::Db(e.to_string()))?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| TenancyError::Db(e.to_string()))?;
     Ok(keys)
 }
 
@@ -79,7 +80,7 @@ pub fn list_secrets(conn: &Connection, org_id: &OrgId) -> Result<Vec<ScopedSecre
              FROM mt_scoped_secrets WHERE org_id = ?1 ORDER BY key",
         )
         .map_err(|e| TenancyError::Db(e.to_string()))?;
-    let secrets = stmt
+    let secrets: Vec<ScopedSecret> = stmt
         .query_map([&org_id.0], |row| {
             Ok(ScopedSecret {
                 org_id: OrgId(row.get::<_, String>(0)?),
@@ -90,8 +91,8 @@ pub fn list_secrets(conn: &Connection, org_id: &OrgId) -> Result<Vec<ScopedSecre
             })
         })
         .map_err(|e| TenancyError::Db(e.to_string()))?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| TenancyError::Db(e.to_string()))?;
     Ok(secrets)
 }
 

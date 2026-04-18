@@ -49,11 +49,11 @@ pub fn list_org_tables(conn: &Connection, org_id: &OrgId) -> Result<Vec<String>,
         )
         .map_err(|e| TenancyError::Db(e.to_string()))?;
     let pattern = format!("{prefix}%");
-    let tables = stmt
+    let tables: Vec<String> = stmt
         .query_map([&pattern], |row| row.get::<_, String>(0))
         .map_err(|e| TenancyError::Db(e.to_string()))?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| TenancyError::Db(e.to_string()))?;
     Ok(tables)
 }
 
